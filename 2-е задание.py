@@ -2,6 +2,10 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import SGDRegressor
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
 
 
 # Настройка вывода таблиц окна run
@@ -13,6 +17,20 @@ pd.set_option('display.max_columns',30)
 x_data = pd.read_csv(r'C:\Users\pc\PycharmProjects\Северсталь_задание\X_data.csv',sep=';')
 y_submit = pd.read_csv(r'C:\Users\pc\PycharmProjects\Северсталь_задание\Y_submit.csv',sep=';')
 y_train = pd.read_csv(r'C:\Users\pc\PycharmProjects\Северсталь_задание\Y_train.csv',sep=';')
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+
+
+#матрица корреляций
+corr = x_data.corr()
+sns.heatmap(corr,
+        xticklabels=corr.columns,
+        yticklabels=corr.columns)
+plt.show()
+
 
 # Проверяю на None значения
 for i in x_data.columns:
@@ -157,7 +175,7 @@ y_submit_finish_time_values = y_submit_finish_time_values.append(last_value_time
 
 
 #
-y_train = y_train_without_first_value_shifted
+Y = y_train_without_first_value_shifted
 
 Y_test = y_test_full
 
@@ -175,7 +193,7 @@ for i in range(0,x_train_finish.shape[0],step):
         df3_train = df2_train.mean(axis=0)
         df_train = df_train.append(df3_train,ignore_index=True)
 
-x_train_finish = df_train
+X = df_train
 
 
 df_test = pd.DataFrame(columns=list_column_names_x_train_without_first)
@@ -195,18 +213,17 @@ for i in range(0,x_test_last_val.shape[0],step):
         df5_test = x_test_last_val[i:j]
         df6_test = df5_test.mean(axis=0)
         df_test = df_test.append(df6_test, ignore_index=True)
-        print(df5_test.shape,'df5_test')
 
-x_test_finish = df_test
+X_test = df_test
 
-
-x_train, x_test, y_train, y_test = train_test_split(x_train_finish,y_train,test_size=0.01,random_state=42)
+x_train, x_test, y_train, y_test = train_test_split(X,Y,test_size=0.01,random_state=42)
 lr = LinearRegression(n_jobs=-1)
 lr.fit(x_train,y_train)
-y_pred = lr.predict(x_test_finish)
+y_pred = lr.predict(X_test)
 mae = mean_absolute_error
 mae = mae(Y_test,y_pred)
-print(mae)
+print('MAE = {}'.format(mae))
+
 
 y_submit_new_time_column_name = str(list(y_submit_finish_time_values)[0])
 y_submit_time_values = pd.to_datetime(y_submit_finish_time_values[y_submit_new_time_column_name])
@@ -215,3 +232,61 @@ with open('submit.txt', 'w') as dst:
     dst.write('')
     for i, p in zip(y_pred, df):
         dst.write('%s,%s\n' % (p, float(i)))
+
+
+x_train, x_test, y_train, y_test = train_test_split(X,Y,test_size=0.2,random_state=42)
+lr = LinearRegression(n_jobs=-1)
+lr.fit(x_train,y_train)
+y_pred = lr.predict(x_test)
+mae = mean_absolute_error
+mae = mae(y_test,y_pred)
+print('MAE = {}'.format(mae))
+
+
+
+
+
+x_train, x_test, y_train, y_test = train_test_split(X,Y,test_size=0.2,random_state=42)
+
+scaler = StandardScaler()
+scaler.fit(x_train)
+x_train = scaler.transform(x_train)
+x_test = scaler.transform(x_test)
+scaler.fit(y_train)
+y_train = scaler.transform(y_train)
+y_test = scaler.transform(y_test)
+y_train = y_train.ravel()
+
+from sklearn.model_selection import GridSearchCV
+alfa = [0.0001, 0.001, 0.01, 0.1]
+grid_param = {  'penalty' : ['l1','l2','elasticnet'],
+                'alpha' : alfa,
+                'learning_rate':  ['constant'],
+                'eta0' : [0.1,0.01,0.001],
+}
+gs =GridSearchCV(SGDRegressor(),param_grid=grid_param,n_jobs=-1,cv=5,)
+gs.fit(x_train,y_train)
+y_pred = gs.predict(x_test)
+bp = gs.best_params_
+print(bp)
+
+
+best_paran_ssc = {'alpha': 0.1, 'eta0': 0.001, 'learning_rate': 'constant', 'penalty': 'elasticnet'}
+
+
+
+x_train, x_test, y_train, y_test = train_test_split(X,Y,test_size=0.2,random_state=42)
+
+reg = make_pipeline(StandardScaler(),SGDRegressor(alpha= 0.1, eta0= 0.001, learning_rate= 'constant', penalty= 'l1',max_iter= 100000))
+reg.fit(x_train, y_train.values.ravel())
+
+y_pred = reg.predict(x_test)
+
+
+
+mae = mean_absolute_error
+mae = mae(y_test,y_pred)
+print('MAE = {}'.format(mae))
+
+
+
